@@ -40,7 +40,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <IncludePath>D:\soft\vr\OculusSDK\LibOVRKernel\Src;D:\soft\vr\OculusSDK\LibOVR\Include;$(IncludePath)</IncludePath>
-    <LibraryPath>D:\soft\vr\OculusSDK\LibOVRKernel\Lib\Windows\Win32\Release\VS2013;D:\soft\vr\OculusSDK\LibOVR\Lib\Win32\VS2013;$(LibraryPath)</LibraryPath>
+    <LibraryPath>D:\soft\vr\OculusSDK\LibOVR\Lib\Windows\Win32\Release\VS2013;D:\soft\vr\OculusSDK\LibOVRKernel\Lib\Windows\Win32\Release\VS2013;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -50,6 +50,7 @@
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
