@@ -2,7 +2,15 @@
 
 void main(int argc, char **argv){
 	init();
-	system("pause");
+	glfwSetKeyCallback(window, key_callback);
+	while (!glfwWindowShouldClose(window)){
+		glfwPollEvents();
+		rendering_loop();
+
+
+		glfwSwapBuffers(window);
+	}
+	//system("pause");
 }
 
 int init(){
@@ -23,6 +31,10 @@ int init(){
 
 	desc = ovr_GetHmdDesc(session);
 	resolution = desc.Resolution;
+	printf("Resolution HMD: %d(w) - %d(h)\n", resolution.w, resolution.h);
+	printf("aaaaaaaaaaaaaaaa initialized HMD: %s - %s\n", desc.Manufacturer, desc.ProductName);
+
+	//The horizontal FOV of the position tracker frustum
 	float frustomHorizontalFOV = desc.CameraFrustumHFovInRadians;
 
 	// Query the HMD for ts current tracking state.
@@ -33,6 +45,7 @@ int init(){
 		pose = ts.HeadPose;
 	}
 
+	
 #pragma region glfw
 	if (!glfwInit()){
 		fprintf(stderr, "Failed to initialize glfw.\n");
@@ -42,20 +55,27 @@ int init(){
 	glfwSetErrorCallback(error_callback);
 	if (!glfwInit())
 		exit(EXIT_FAILURE);
+	else
+		printf("glfw inited\n");
 	glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
 	if (!(window = glfwCreateWindow(640, 480, "Oculus", NULL, NULL))){
 		glfwTerminate();
 		exit(EXIT_FAILURE);
 	}
+	else
+		printf("glfw created window\n");
 	glfwMakeContextCurrent(window);
+	glewInit();//donnot forget!!
+
 #pragma endregion initialize glfw
 
+	genFBO();
 	// Configure Stereo settings.
 	recommenedTex0Size = ovr_GetFovTextureSize(session, ovrEye_Left,
 		desc.DefaultEyeFov[0], 1.0f);
 	recommenedTex1Size = ovr_GetFovTextureSize(session, ovrEye_Right,
 		desc.DefaultEyeFov[1], 1.0f);
-	ovrSizei bufferSize;
+	
 	bufferSize.w = recommenedTex0Size.w + recommenedTex1Size.w;
 	bufferSize.h = max(recommenedTex0Size.h, recommenedTex1Size.h);
 
@@ -89,6 +109,7 @@ int init(){
 	// ld.RenderPose and ld.SensorSampleTime are updated later per frame.
 	isVisible = true;
 
+	
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
 	glEnable(GL_LIGHTING);
@@ -140,6 +161,8 @@ void rendering_loop(){
 			glTranslatef(-layer.RenderPose[eye].Position.x, -layer.RenderPose[eye].Position.y, -layer.RenderPose[eye].Position.z);
 			/* move the camera to the eye level of the user */
 			glTranslatef(0, -ovr_GetFloat(session, OVR_KEY_EYE_HEIGHT, 1.65), 0);
+
+			draw_scene();
 		}
 	}
 	glDisable(GL_FRAMEBUFFER_SRGB);
@@ -177,25 +200,33 @@ static void key_callback(GLFWwindow* window1, int key, int scancode, int action,
 }
 
 void genFBO(){
-	glGenFramebuffers(1, &fbo);
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	if (!fbo){
+		
+		glGenTextures(1, &fb_texture);
+		glGenRenderbuffers(1, &fb_depth);
+		glGenFramebuffers(1, &fbo);
+	}
 	
-	glGenTextures(1, &fb_texture);
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);	
+	
 	glBindTexture(GL_TEXTURE_2D, fb_texture);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, tex->OGL.Header.TextureSize.w, tex->Texture.Header.TextureSize.h, 0,
-		GL_RGBA, GL_UNSIGNED_BYTE, 0);
+	//glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, bufferSize.w, bufferSize.h, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, 12, 12, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fb_texture, 0);
-
-	glGenRenderbuffers(1, &fb_depth);
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+		fprintf(stderr, "0 incomplete framebuffer!\n");
+	}
+	
 	glBindRenderbuffer(GL_RENDERBUFFER, fb_depth);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, tex->OGL.Header.TextureSize.w, tex->Texture.Header.TextureSize.h);
+	//glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, bufferSize.w, bufferSize.h);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, 12, 12);
 	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, fb_depth);
 
 	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-		fprintf(stderr, "incomplete framebuffer!\n");
+		fprintf(stderr, "1 incomplete framebuffer!\n");
 	}
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
