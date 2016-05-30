@@ -32,6 +32,7 @@ void genFBO();
 unsigned int gen_chess_tex(float r0, float g0, float b0, float r1, float g1, float b1);
 static void error_callback(int error, const char* description);
 static void key_callback(GLFWwindow* window1, int key, int scancode, int action, int mods);
+static void scroll_callback(GLFWwindow* window, double x, double y);
 
 static ovrResult result;
 static ovrSession session;
@@ -48,3 +49,4 @@ static ovrEyeRenderDesc eyeRenderDesc[2];
 static ovrVector3f hmdToEyeViewOffset[2];
 static ovrLayerEyeFov layer;
 static bool isVisible;
+static ovrSwapTextureSet * pTextureSet;

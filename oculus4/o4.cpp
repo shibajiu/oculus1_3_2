@@ -79,15 +79,18 @@ int init(){
 	bufferSize.w = recommenedTex0Size.w + recommenedTex1Size.w;
 	bufferSize.h = max(recommenedTex0Size.h, recommenedTex1Size.h);
 
-	//glEnable(GL_FRAMEBUFFER_SRGB);
-	ovrSwapTextureSet * pTextureSet = 0;
+	
 	//application should call glEnable(GL_FRAMEBUFFER_SRGB) before rendering into these textures.
-	if (ovr_CreateSwapTextureSetGL(session, GL_SRGB8_ALPHA8, bufferSize.w, bufferSize.h,
-		&pTextureSet) == ovrSuccess)
-	{
+	if (ovr_CreateSwapTextureSetGL(session, GL_SRGB8_ALPHA8, bufferSize.w, bufferSize.h,&pTextureSet) == ovrSuccess){
 		// Sample texture access:
-		tex = (ovrGLTexture*)&pTextureSet->Textures[0];
-		glBindTexture(GL_TEXTURE_2D, tex->OGL.TexId);		
+		for (int it = 0; it < 2; ++it){
+			tex = (ovrGLTexture*)&pTextureSet->Textures[it];
+			glBindTexture(GL_TEXTURE_2D, tex->OGL.TexId);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		}		
 	}
 	
 	eyeRenderDesc[0] = ovr_GetRenderDesc(session, ovrEye_Left, desc.DefaultEyeFov[0]);
@@ -97,17 +100,10 @@ int init(){
 
 	// Initialize our single full screen Fov layer.
 	
-	layer.Header.Type = ovrLayerType_EyeFov;
-	layer.Header.Flags = ovrLayerFlag_TextureOriginAtBottomLeft;
-	layer.ColorTexture[0] = pTextureSet;
-	layer.ColorTexture[1] = pTextureSet;
-	layer.Fov[0] = eyeRenderDesc[0].Fov;
-	layer.Fov[1] = eyeRenderDesc[1].Fov;
-	layer.Viewport[0] = Recti(0, 0, bufferSize.w / 2, bufferSize.h);
-	layer.Viewport[1] = Recti(bufferSize.w / 2, 0, bufferSize.w / 2, bufferSize.h);
+	
 	
 	// ld.RenderPose and ld.SensorSampleTime are updated later per frame.
-	isVisible = true;
+	isVisible = 1;
 
 	
 	glEnable(GL_DEPTH_TEST);
@@ -120,7 +116,7 @@ int init(){
 	glLightModelfv(GL_LIGHT_MODEL_AMBIENT, V);
 	glEnable(GL_COLOR_MATERIAL);
 
-	glClearColor(0.1, 0.1, 0.1, 1);
+	glClearColor(1, 1, 1, 1);
 	chess_tex = gen_chess_tex(1.0, 0.7, 0.4, 0.4, 0.7, 1.0);
 
 }
@@ -130,10 +126,12 @@ void rendering_loop(){
 	ovrMatrix4f proj;
 	float rot_mat[16];
 
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glClearColor(1, 0, 1, 1);
+	//glEnable(GL_FRAMEBUFFER_SRGB);
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glEnable(GL_FRAMEBUFFER_SRGB);
-
 	// Get both eye poses simultaneously, with IPD offset already included.
 	double displayMidpointSeconds = ovr_GetPredictedDisplayTime(session, 0);
 	double sensorSampleTime = ovr_GetTimeInSeconds();
@@ -141,10 +139,10 @@ void rendering_loop(){
 	ovr_CalcEyePoses(hmdState.HeadPose.ThePose, hmdToEyeViewOffset, layer.RenderPose);
 	layer.SensorSampleTime = sensorSampleTime;
 
-	if (isVisible)
-	{
+	if (isVisible){
 		for (int eye = 0; eye < 2; ++eye){
-			glViewport(0, 0, eye == 0 ? recommenedTex0Size.w : recommenedTex1Size.w, eye == 0 ? recommenedTex0Size.h:recommenedTex1Size.h);
+			//glViewport(0, 0, eye == 0 ? recommenedTex0Size.w : recommenedTex1Size.w, eye == 0 ? recommenedTex0Size.h : recommenedTex1Size.h);
+			glViewport(0, 0, 50, 50);
 			proj = ovrMatrix4f_Projection(desc.DefaultEyeFov[eye], 0.5, 500.0, 1);
 			glMatrixMode(GL_PROJECTION);
 			glLoadTransposeMatrixf(proj.M[0]);
@@ -161,13 +159,30 @@ void rendering_loop(){
 			glTranslatef(-layer.RenderPose[eye].Position.x, -layer.RenderPose[eye].Position.y, -layer.RenderPose[eye].Position.z);
 			/* move the camera to the eye level of the user */
 			glTranslatef(0, -ovr_GetFloat(session, OVR_KEY_EYE_HEIGHT, 1.65), 0);
-
-			draw_scene();
+			glPushMatrix();
+			glTranslatef(0, 0, -10);
+			glColor3f(1, 0, 0);
+			glBegin(GL_TRIANGLES);
+			glVertex3f(5, -5, 0);
+			glVertex3f(0, 5, 0);
+			glVertex3f(-5, -5, 0);
+			glEnd();
+			glPopMatrix();
+			//draw_scene();
+			
 		}
 	}
-	glDisable(GL_FRAMEBUFFER_SRGB);
-	
+	//glDisable(GL_FRAMEBUFFER_SRGB);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	// Do distortion rendering, Present and flush/sync
+	layer.Header.Type = ovrLayerType_EyeFov;
+	layer.Header.Flags = ovrLayerFlag_TextureOriginAtBottomLeft;
+	layer.ColorTexture[0] = pTextureSet;
+	layer.ColorTexture[1] = pTextureSet;
+	layer.Fov[0] = eyeRenderDesc[0].Fov;
+	layer.Fov[1] = eyeRenderDesc[1].Fov;
+	layer.Viewport[0] = Recti(0, 0, bufferSize.w / 2, bufferSize.h);
+	layer.Viewport[1] = Recti(bufferSize.w / 2, 0, bufferSize.w / 2, bufferSize.h);
 
 	// Set up positional data.
 	ovrViewScaleDesc viewScaleDesc;
@@ -177,7 +192,8 @@ void rendering_loop(){
 
 	ovrLayerHeader* layers = &layer.Header;
 	ovrResult result = ovr_SubmitFrame(session, 0, &viewScaleDesc, &layers, 1);
-	isVisible = (result == ovrSuccess);
+	//isVisible = (result == ovrSuccess);
+	//printf("isVisible:%d\n", isVisible);
 
 }
 
@@ -188,15 +204,23 @@ void shutdowm(){
 	ovr_Shutdown();
 }
 
-static void error_callback(int error, const char* description)
-{
+static void error_callback(int error, const char* description){
 	fputs(description, stderr);
 }
 
-static void key_callback(GLFWwindow* window1, int key, int scancode, int action, int mods)
-{
-	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+static void key_callback(GLFWwindow* window1, int key, int scancode, int action, int mods){
+	if (action != GLFW_PRESS)
+		return;
+	switch (key)
+	{
+	case GLFW_KEY_ESCAPE:
 		glfwSetWindowShouldClose(window1, GL_TRUE);
+		break;
+	case GLFW_KEY_W:
+		break;
+	default:
+		break;
+	}
 }
 
 void genFBO(){
@@ -212,6 +236,8 @@ void genFBO(){
 	glBindTexture(GL_TEXTURE_2D, fb_texture);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
 	//glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, bufferSize.w, bufferSize.h, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, 12, 12, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
@@ -232,8 +258,7 @@ void genFBO(){
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-void quat_to_matrix(const float *quat, float *mat)
-{
+void quat_to_matrix(const float *quat, float *mat){
 	mat[0] = 1.0 - 2.0 * quat[1] * quat[1] - 2.0 * quat[2] * quat[2];
 	mat[4] = 2.0 * quat[0] * quat[1] + 2.0 * quat[3] * quat[2];
 	mat[8] = 2.0 * quat[2] * quat[0] - 2.0 * quat[3] * quat[1];
@@ -253,8 +278,7 @@ void quat_to_matrix(const float *quat, float *mat)
 	mat[15] = 1.0f;
 }
 
-void draw_scene(void)
-{
+void draw_scene(void){
 	int i;
 	float grey[] = { 0.8, 0.8, 0.8, 1 };
 	float col[] = { 0, 0, 0, 1 };
@@ -314,8 +338,7 @@ void draw_scene(void)
 	draw_box(6, 1.2, 0.05, 1.0);
 }
 
-void draw_box(float xsz, float ysz, float zsz, float norm_sign)
-{
+void draw_box(float xsz, float ysz, float zsz, float norm_sign){
 	glMatrixMode(GL_MODELVIEW);
 	glPushMatrix();
 	glScalef(xsz * 0.5, ysz * 0.5, zsz * 0.5);
@@ -369,8 +392,7 @@ void draw_box(float xsz, float ysz, float zsz, float norm_sign)
 	glPopMatrix();
 }
 
-unsigned int gen_chess_tex(float r0, float g0, float b0, float r1, float g1, float b1)
-{
+unsigned int gen_chess_tex(float r0, float g0, float b0, float r1, float g1, float b1){
 	int i, j;
 	unsigned int tex;
 	unsigned char img[8 * 8 * 3];
@@ -390,7 +412,12 @@ unsigned int gen_chess_tex(float r0, float g0, float b0, float r1, float g1, flo
 	glBindTexture(GL_TEXTURE_2D, tex);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 8, 8, 0, GL_RGB, GL_UNSIGNED_BYTE, img);
-
+	//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 8, 8, 0, GL_RGB, GL_UNSIGNED_BYTE, img);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, 8, 8, 0, GL_RGBA, GL_UNSIGNED_BYTE, img);
+	printf("generated texture\n");
 	return tex;
+}
+
+static void scroll_callback(GLFWwindow* window, double x, double y){
+	return;
 }
