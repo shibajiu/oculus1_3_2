@@ -58,7 +58,7 @@ int init(){
 	else
 		printf("glfw inited\n");
 	glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
-	if (!(window = glfwCreateWindow(640, 480, "Oculus", NULL, NULL))){
+	if (!(window = glfwCreateWindow(resolution.w*0.5, resolution.h*0.5, "Oculus", NULL, NULL))){
 		glfwTerminate();
 		exit(EXIT_FAILURE);
 	}
@@ -69,7 +69,7 @@ int init(){
 
 #pragma endregion initialize glfw
 
-	genFBO();
+	//genFBO();
 	// Configure Stereo settings.
 	recommenedTex0Size = ovr_GetFovTextureSize(session, ovrEye_Left,
 		desc.DefaultEyeFov[0], 1.0f);
@@ -80,18 +80,60 @@ int init(){
 	bufferSize.h = max(recommenedTex0Size.h, recommenedTex1Size.h);
 
 	
-	//application should call glEnable(GL_FRAMEBUFFER_SRGB) before rendering into these textures.
-	if (ovr_CreateSwapTextureSetGL(session, GL_SRGB8_ALPHA8, bufferSize.w, bufferSize.h,&pTextureSet) == ovrSuccess){
-		// Sample texture access:
-		for (int it = 0; it < 2; ++it){
-			tex = (ovrGLTexture*)&pTextureSet->Textures[it];
-			glBindTexture(GL_TEXTURE_2D, tex->OGL.TexId);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		}		
+	////application should call glEnable(GL_FRAMEBUFFER_SRGB) before rendering into these textures.
+	//if (ovr_CreateSwapTextureSetGL(session, GL_SRGB8_ALPHA8, bufferSize.w, bufferSize.h,&pTextureSet) == ovrSuccess){
+	//	// Sample texture access:
+	//	for (int it = 0; it < 2; ++it){
+	//		tex = (ovrGLTexture*)&pTextureSet->Textures[it];
+	//		glBindTexture(GL_TEXTURE_2D, tex->OGL.TexId);
+	//		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	//		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	//		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	//		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	//	}		
+	//}
+
+	// Make eye render buffers
+	for (int eye = 0; eye < 2; ++eye)
+	{
+		ovrSizei idealTextureSize = ovr_GetFovTextureSize(session, ovrEyeType(eye), desc.DefaultEyeFov[eye], 1);
+		//eyeRenderTexture[eye] = new TextureBuffer(HMD, true, true, idealTextureSize, 1, NULL, 1);
+		if (ovr_CreateSwapTextureSetGL(session, GL_SRGB8_ALPHA8, idealTextureSize.w, idealTextureSize.h, pTextureSet+eye) == ovrSuccess){
+			for (int it = 0; it < pTextureSet[eye]->TextureCount; ++it){
+				tex = (ovrGLTexture*)&pTextureSet[eye]->Textures[it];
+				glBindTexture(GL_TEXTURE_2D, tex->OGL.TexId);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+			}
+		}
+		glGenFramebuffers(1, &fbo[eye]);
+		//eyeDepthBuffer[eye] = new DepthBuffer(eyeRenderTexture[eye]->GetSize(), 0);
+		glGenTextures(1, &fb_depth[eye]);
+		glBindTexture(GL_TEXTURE_2D, fb_depth[eye]);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, idealTextureSize.w, idealTextureSize.h, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, NULL);
 	}
+
+	// Create mirror texture and an FBO used to copy mirror texture to back buffer
+	result = ovr_CreateMirrorTextureGL(session, GL_SRGB8_ALPHA8, resolution.w*0.5, resolution.h*0.5, reinterpret_cast<ovrTexture**>(&mirrorTexture));
+	if (!OVR_SUCCESS(result))
+	{
+		
+		fprintf(stderr, "Failed to create mirror texture.");
+	}
+
+	// Configure the mirror read buffer
+	glGenFramebuffers(1, &mirrorFBO);
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, mirrorFBO);
+	glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, mirrorTexture->OGL.TexId, 0);
+	glFramebufferRenderbuffer(GL_READ_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, 0);
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 	
 	eyeRenderDesc[0] = ovr_GetRenderDesc(session, ovrEye_Left, desc.DefaultEyeFov[0]);
 	eyeRenderDesc[1] = ovr_GetRenderDesc(session, ovrEye_Right, desc.DefaultEyeFov[1]);
@@ -130,7 +172,7 @@ void rendering_loop(){
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glClearColor(1, 0, 1, 1);
 	//glEnable(GL_FRAMEBUFFER_SRGB);
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	//glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glEnable(GL_FRAMEBUFFER_SRGB);
 	// Get both eye poses simultaneously, with IPD offset already included.
 	double displayMidpointSeconds = ovr_GetPredictedDisplayTime(session, 0);
@@ -141,8 +183,24 @@ void rendering_loop(){
 
 	if (isVisible){
 		for (int eye = 0; eye < 2; ++eye){
+			// Increment to use next texture, just before writing
+			pTextureSet[eye]->CurrentIndex = (pTextureSet[eye]->CurrentIndex + 1) % pTextureSet[eye]->TextureCount;
+
+			// Switch to eye render target
+			//eyeRenderTexture[eye]->SetAndClearRenderSurface(eyeDepthBuffer[eye]);
+			auto texl = reinterpret_cast<ovrGLTexture*>(&pTextureSet[eye]->Textures[pTextureSet[eye]->CurrentIndex]);
+
+			glBindFramebuffer(GL_FRAMEBUFFER, fbo[eye]);
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texl->OGL.TexId, 0);
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, fb_depth[eye], 0);
+
+			glViewport(0, 0, eye == 0 ? recommenedTex0Size.w : recommenedTex1Size.w, eye == 0 ? recommenedTex0Size.h : recommenedTex1Size.h);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			glEnable(GL_FRAMEBUFFER_SRGB);
+
 			//glViewport(0, 0, eye == 0 ? recommenedTex0Size.w : recommenedTex1Size.w, eye == 0 ? recommenedTex0Size.h : recommenedTex1Size.h);
 			glViewport(0, 0, 50, 50);
+
 			proj = ovrMatrix4f_Projection(desc.DefaultEyeFov[eye], 0.5, 500.0, 1);
 			glMatrixMode(GL_PROJECTION);
 			glLoadTransposeMatrixf(proj.M[0]);
@@ -169,16 +227,19 @@ void rendering_loop(){
 			glEnd();
 			glPopMatrix();
 			//draw_scene();
-			
+
+			glBindFramebuffer(GL_FRAMEBUFFER, fbo[eye]);
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
 		}
 	}
 	//glDisable(GL_FRAMEBUFFER_SRGB);
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	//glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	// Do distortion rendering, Present and flush/sync
 	layer.Header.Type = ovrLayerType_EyeFov;
 	layer.Header.Flags = ovrLayerFlag_TextureOriginAtBottomLeft;
-	layer.ColorTexture[0] = pTextureSet;
-	layer.ColorTexture[1] = pTextureSet;
+	layer.ColorTexture[0] = pTextureSet[0];
+	layer.ColorTexture[1] = pTextureSet[1];
 	layer.Fov[0] = eyeRenderDesc[0].Fov;
 	layer.Fov[1] = eyeRenderDesc[1].Fov;
 	layer.Viewport[0] = Recti(0, 0, bufferSize.w / 2, bufferSize.h);
@@ -192,9 +253,18 @@ void rendering_loop(){
 
 	ovrLayerHeader* layers = &layer.Header;
 	ovrResult result = ovr_SubmitFrame(session, 0, &viewScaleDesc, &layers, 1);
-	//isVisible = (result == ovrSuccess);
+	isVisible = (result == ovrSuccess);
 	//printf("isVisible:%d\n", isVisible);
 
+	// Blit mirror texture to back buffer
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, mirrorFBO);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+	GLint w = mirrorTexture->OGL.Header.TextureSize.w;
+	GLint h = mirrorTexture->OGL.Header.TextureSize.h;
+	glBlitFramebuffer(0, h, w, 0,
+		0, 0, w, h,
+		GL_COLOR_BUFFER_BIT, GL_NEAREST);
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 }
 
 void shutdowm(){
@@ -223,40 +293,40 @@ static void key_callback(GLFWwindow* window1, int key, int scancode, int action,
 	}
 }
 
-void genFBO(){
-	if (!fbo){
-		
-		glGenTextures(1, &fb_texture);
-		glGenRenderbuffers(1, &fb_depth);
-		glGenFramebuffers(1, &fbo);
-	}
-	
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);	
-	
-	glBindTexture(GL_TEXTURE_2D, fb_texture);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-	//glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, bufferSize.w, bufferSize.h, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, 12, 12, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fb_texture, 0);
-	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-		fprintf(stderr, "0 incomplete framebuffer!\n");
-	}
-	
-	glBindRenderbuffer(GL_RENDERBUFFER, fb_depth);
-	//glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, bufferSize.w, bufferSize.h);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, 12, 12);
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, fb_depth);
-
-	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-		fprintf(stderr, "1 incomplete framebuffer!\n");
-	}
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-}
+//void genFBO(){
+//	if (!fbo){
+//		
+//		glGenTextures(1, &fb_texture);
+//		glGenRenderbuffers(1, &fb_depth);
+//		glGenFramebuffers(1, &fbo);
+//	}
+//	
+//	glBindFramebuffer(GL_FRAMEBUFFER, fbo);	
+//	
+//	glBindTexture(GL_TEXTURE_2D, fb_texture);
+//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+//
+//	//glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, bufferSize.w, bufferSize.h, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+//	glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, 12, 12, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+//	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fb_texture, 0);
+//	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+//		fprintf(stderr, "0 incomplete framebuffer!\n");
+//	}
+//	
+//	glBindRenderbuffer(GL_RENDERBUFFER, fb_depth);
+//	//glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, bufferSize.w, bufferSize.h);
+//	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, 12, 12);
+//	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, fb_depth);
+//
+//	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+//		fprintf(stderr, "1 incomplete framebuffer!\n");
+//	}
+//
+//	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+//}
 
 void quat_to_matrix(const float *quat, float *mat){
 	mat[0] = 1.0 - 2.0 * quat[1] * quat[1] - 2.0 * quat[2] * quat[2];
