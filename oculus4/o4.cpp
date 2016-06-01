@@ -33,7 +33,7 @@ int init(){
 	resolution = desc.Resolution;
 	printf("Resolution HMD: %d(w) - %d(h)\n", resolution.w, resolution.h);
 	printf("aaaaaaaaaaaaaaaa initialized HMD: %s - %s\n", desc.Manufacturer, desc.ProductName);
-
+	/*
 	//The horizontal FOV of the position tracker frustum
 	float frustomHorizontalFOV = desc.CameraFrustumHFovInRadians;
 
@@ -42,9 +42,9 @@ int init(){
 
 	//includes full six degrees of freedom (6DoF) head tracking data including orientation, position, and their first and second derivatives.
 	if (ts.StatusFlags & (ovrStatus_OrientationTracked | ovrStatus_PositionTracked)){
-		pose = ts.HeadPose;
+	pose = ts.HeadPose;
 	}
-
+	*/
 	
 #pragma region glfw
 	if (!glfwInit()){
@@ -76,8 +76,8 @@ int init(){
 	recommenedTex1Size = ovr_GetFovTextureSize(session, ovrEye_Right,
 		desc.DefaultEyeFov[1], 1.0f);
 	
-	bufferSize.w = recommenedTex0Size.w + recommenedTex1Size.w;
-	bufferSize.h = max(recommenedTex0Size.h, recommenedTex1Size.h);
+	/*bufferSize.w = recommenedTex0Size.w + recommenedTex1Size.w;
+	bufferSize.h = max(recommenedTex0Size.h, recommenedTex1Size.h);*/
 
 	
 	////application should call glEnable(GL_FRAMEBUFFER_SRGB) before rendering into these textures.
@@ -170,7 +170,7 @@ void rendering_loop(){
 
 	
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glClearColor(1, 0, 1, 1);
+	glClearColor(1, 1, 1, 1);
 	//glEnable(GL_FRAMEBUFFER_SRGB);
 	//glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glEnable(GL_FRAMEBUFFER_SRGB);
@@ -199,7 +199,7 @@ void rendering_loop(){
 			glEnable(GL_FRAMEBUFFER_SRGB);
 
 			//glViewport(0, 0, eye == 0 ? recommenedTex0Size.w : recommenedTex1Size.w, eye == 0 ? recommenedTex0Size.h : recommenedTex1Size.h);
-			glViewport(0, 0, 50, 50);
+			//glViewport(0, 0, 50, 50);
 
 			proj = ovrMatrix4f_Projection(desc.DefaultEyeFov[eye], 0.5, 500.0, 1);
 			glMatrixMode(GL_PROJECTION);
@@ -217,7 +217,7 @@ void rendering_loop(){
 			glTranslatef(-layer.RenderPose[eye].Position.x, -layer.RenderPose[eye].Position.y, -layer.RenderPose[eye].Position.z);
 			/* move the camera to the eye level of the user */
 			glTranslatef(0, -ovr_GetFloat(session, OVR_KEY_EYE_HEIGHT, 1.65), 0);
-			glPushMatrix();
+			/*glPushMatrix();
 			glTranslatef(0, 0, -10);
 			glColor3f(1, 0, 0);
 			glBegin(GL_TRIANGLES);
@@ -225,8 +225,8 @@ void rendering_loop(){
 			glVertex3f(0, 5, 0);
 			glVertex3f(-5, -5, 0);
 			glEnd();
-			glPopMatrix();
-			//draw_scene();
+			glPopMatrix();*/
+			draw_scene();
 
 			glBindFramebuffer(GL_FRAMEBUFFER, fbo[eye]);
 			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
@@ -242,8 +242,8 @@ void rendering_loop(){
 	layer.ColorTexture[1] = pTextureSet[1];
 	layer.Fov[0] = eyeRenderDesc[0].Fov;
 	layer.Fov[1] = eyeRenderDesc[1].Fov;
-	layer.Viewport[0] = Recti(0, 0, bufferSize.w / 2, bufferSize.h);
-	layer.Viewport[1] = Recti(bufferSize.w / 2, 0, bufferSize.w / 2, bufferSize.h);
+	layer.Viewport[0] = Recti(recommenedTex0Size);
+	layer.Viewport[1] = Recti(recommenedTex1Size);
 
 	// Set up positional data.
 	ovrViewScaleDesc viewScaleDesc;
