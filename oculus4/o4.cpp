@@ -33,7 +33,7 @@ int init(){
 	resolution = desc.Resolution;
 	printf("Resolution HMD: %d(w) - %d(h)\n", resolution.w, resolution.h);
 	printf("aaaaaaaaaaaaaaaa initialized HMD: %s - %s\n", desc.Manufacturer, desc.ProductName);
-	/*
+	
 	//The horizontal FOV of the position tracker frustum
 	float frustomHorizontalFOV = desc.CameraFrustumHFovInRadians;
 
@@ -43,14 +43,10 @@ int init(){
 	//includes full six degrees of freedom (6DoF) head tracking data including orientation, position, and their first and second derivatives.
 	if (ts.StatusFlags & (ovrStatus_OrientationTracked | ovrStatus_PositionTracked)){
 	pose = ts.HeadPose;
-	}
-	*/
+	}	
 	
 #pragma region glfw
-	if (!glfwInit()){
-		fprintf(stderr, "Failed to initialize glfw.\n");
-		return 0;
-	}
+
 	//create a glfw window
 	glfwSetErrorCallback(error_callback);
 	if (!glfwInit())
@@ -66,32 +62,17 @@ int init(){
 		printf("glfw created window\n");
 	glfwMakeContextCurrent(window);
 	glewInit();//donnot forget!!
+	glfwSwapInterval(0);
 
 #pragma endregion initialize glfw
 
-	//genFBO();
 	// Configure Stereo settings.
 	recommenedTex0Size = ovr_GetFovTextureSize(session, ovrEye_Left,
 		desc.DefaultEyeFov[0], 1.0f);
 	recommenedTex1Size = ovr_GetFovTextureSize(session, ovrEye_Right,
 		desc.DefaultEyeFov[1], 1.0f);
 	
-	/*bufferSize.w = recommenedTex0Size.w + recommenedTex1Size.w;
-	bufferSize.h = max(recommenedTex0Size.h, recommenedTex1Size.h);*/
-
-	
-	////application should call glEnable(GL_FRAMEBUFFER_SRGB) before rendering into these textures.
-	//if (ovr_CreateSwapTextureSetGL(session, GL_SRGB8_ALPHA8, bufferSize.w, bufferSize.h,&pTextureSet) == ovrSuccess){
-	//	// Sample texture access:
-	//	for (int it = 0; it < 2; ++it){
-	//		tex = (ovrGLTexture*)&pTextureSet->Textures[it];
-	//		glBindTexture(GL_TEXTURE_2D, tex->OGL.TexId);
-	//		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	//		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	//		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	//		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	//	}		
-	//}
+	//application should call glEnable(GL_FRAMEBUFFER_SRGB) before rendering into these textures.
 
 	// Make eye render buffers
 	for (int eye = 0; eye < 2; ++eye)
@@ -122,9 +103,7 @@ int init(){
 
 	// Create mirror texture and an FBO used to copy mirror texture to back buffer
 	result = ovr_CreateMirrorTextureGL(session, GL_SRGB8_ALPHA8, resolution.w*0.5, resolution.h*0.5, reinterpret_cast<ovrTexture**>(&mirrorTexture));
-	if (!OVR_SUCCESS(result))
-	{
-		
+	if (!OVR_SUCCESS(result)){		
 		fprintf(stderr, "Failed to create mirror texture.");
 	}
 
@@ -167,12 +146,9 @@ void rendering_loop(){
 
 	ovrMatrix4f proj;
 	float rot_mat[16];
-
 	
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glClearColor(1, 1, 1, 1);
-	//glEnable(GL_FRAMEBUFFER_SRGB);
-	//glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glEnable(GL_FRAMEBUFFER_SRGB);
 	// Get both eye poses simultaneously, with IPD offset already included.
 	double displayMidpointSeconds = ovr_GetPredictedDisplayTime(session, 0);
@@ -196,15 +172,10 @@ void rendering_loop(){
 
 			glViewport(0, 0, eye == 0 ? recommenedTex0Size.w : recommenedTex1Size.w, eye == 0 ? recommenedTex0Size.h : recommenedTex1Size.h);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-			glEnable(GL_FRAMEBUFFER_SRGB);
-
-			//glViewport(0, 0, eye == 0 ? recommenedTex0Size.w : recommenedTex1Size.w, eye == 0 ? recommenedTex0Size.h : recommenedTex1Size.h);
-			//glViewport(0, 0, 50, 50);
 
 			proj = ovrMatrix4f_Projection(desc.DefaultEyeFov[eye], 0.5, 500.0, 1);
 			glMatrixMode(GL_PROJECTION);
 			glLoadTransposeMatrixf(proj.M[0]);
-			//pose[eye] = ovr_GetHmdPosePerEye(hmd, eye);
 			
 			glMatrixMode(GL_MODELVIEW);
 			glLoadIdentity();
@@ -217,15 +188,7 @@ void rendering_loop(){
 			glTranslatef(-layer.RenderPose[eye].Position.x, -layer.RenderPose[eye].Position.y, -layer.RenderPose[eye].Position.z);
 			/* move the camera to the eye level of the user */
 			glTranslatef(0, -ovr_GetFloat(session, OVR_KEY_EYE_HEIGHT, 1.65), 0);
-			/*glPushMatrix();
-			glTranslatef(0, 0, -10);
-			glColor3f(1, 0, 0);
-			glBegin(GL_TRIANGLES);
-			glVertex3f(5, -5, 0);
-			glVertex3f(0, 5, 0);
-			glVertex3f(-5, -5, 0);
-			glEnd();
-			glPopMatrix();*/
+			
 			draw_scene();
 
 			glBindFramebuffer(GL_FRAMEBUFFER, fbo[eye]);
@@ -233,8 +196,7 @@ void rendering_loop(){
 			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
 		}
 	}
-	//glDisable(GL_FRAMEBUFFER_SRGB);
-	//glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
 	// Do distortion rendering, Present and flush/sync
 	layer.Header.Type = ovrLayerType_EyeFov;
 	layer.Header.Flags = ovrLayerFlag_TextureOriginAtBottomLeft;
@@ -292,41 +254,6 @@ static void key_callback(GLFWwindow* window1, int key, int scancode, int action,
 		break;
 	}
 }
-
-//void genFBO(){
-//	if (!fbo){
-//		
-//		glGenTextures(1, &fb_texture);
-//		glGenRenderbuffers(1, &fb_depth);
-//		glGenFramebuffers(1, &fbo);
-//	}
-//	
-//	glBindFramebuffer(GL_FRAMEBUFFER, fbo);	
-//	
-//	glBindTexture(GL_TEXTURE_2D, fb_texture);
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-//	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-//
-//	//glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, bufferSize.w, bufferSize.h, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
-//	glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, 12, 12, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
-//	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fb_texture, 0);
-//	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-//		fprintf(stderr, "0 incomplete framebuffer!\n");
-//	}
-//	
-//	glBindRenderbuffer(GL_RENDERBUFFER, fb_depth);
-//	//glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, bufferSize.w, bufferSize.h);
-//	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, 12, 12);
-//	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, fb_depth);
-//
-//	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-//		fprintf(stderr, "1 incomplete framebuffer!\n");
-//	}
-//
-//	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-//}
 
 void quat_to_matrix(const float *quat, float *mat){
 	mat[0] = 1.0 - 2.0 * quat[1] * quat[1] - 2.0 * quat[2] * quat[2];

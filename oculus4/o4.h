@@ -28,7 +28,6 @@ void rendering_loop();
 void quat_to_matrix(const float *quat, float *mat);
 void draw_scene(void);
 void draw_box(float xsz, float ysz, float zsz, float norm_sign);
-void genFBO();
 unsigned int gen_chess_tex(float r0, float g0, float b0, float r1, float g1, float b1);
 static void error_callback(int error, const char* description);
 static void key_callback(GLFWwindow* window1, int key, int scancode, int action, int mods);
